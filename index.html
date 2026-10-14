@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student Voice — Survey Analyser</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172033;background:#f4f6fa}
+*{box-sizing:border-box}body{margin:0}header{background:#17345b;color:white;padding:24px max(18px,calc((100vw - 1100px)/2))}
+h1{margin:0 0 6px;font-size:1.65rem}header p{margin:0;color:#dce8f7}.wrap{max-width:1100px;margin:22px auto;padding:0 16px}
+.panel{background:white;border:1px solid #dce2eb;border-radius:14px;padding:18px;margin:0 0 16px;box-shadow:0 3px 12px #14213b0a}
+h2{font-size:1.15rem;margin:0 0 12px}button,.filebtn{border:0;border-radius:8px;padding:10px 14px;font:inherit;font-weight:650;cursor:pointer;background:#1d5ea8;color:white}button.secondary{background:#e9eef5;color:#21334c}.edit-area{margin-top:12px;padding-top:8px;border-top:1px solid #e4e8ef}.edit-area .editrow{grid-template-columns:minmax(230px,1fr) repeat(5,minmax(58px,auto))}button:disabled{opacity:.45;cursor:not-allowed}
+input[type=file]{max-width:100%}.muted{color:#65738a;font-size:.92rem}.status{padding:10px;background:#eef5ff;border-radius:8px;margin-top:12px;white-space:pre-wrap}
+.progress{height:7px;background:#e5eaf1;border-radius:8px;overflow:hidden;margin-top:10px}.progress span{display:block;height:100%;width:0;background:#2876c7;transition:width .2s}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.stat{background:#f7f9fc;border-radius:10px;padding:12px}.stat strong{font-size:1.45rem;display:block}
+table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{border-bottom:1px solid #e4e8ef;text-align:left;padding:9px 7px;vertical-align:top}th{background:#f7f9fc}td.num{text-align:center;font-variant-numeric:tabular-nums}
+.scroll{overflow:auto}.qtitle{font-weight:650;min-width:240px}.editrow{display:grid;grid-template-columns:minmax(230px,1fr) repeat(5,minmax(58px,auto));gap:7px;align-items:center;margin:8px 0;padding:10px;background:#fafbfd;border:1px solid #e7ebf2;border-radius:8px}
+.editrow label{font-size:.78rem;text-align:center}.editrow input[type=checkbox]{display:block;margin:5px auto}.editrow .qtext{font-weight:550}.pagecard{border:1px solid #dce2eb;border-radius:10px;padding:14px;margin-top:12px}
+textarea,input[type=text]{font:inherit;border:1px solid #cbd4e1;border-radius:7px;padding:8px;width:100%}textarea{min-height:70px;resize:vertical}
+.pill{display:inline-block;background:#e8f1ff;color:#1a508a;border-radius:99px;padding:3px 8px;font-size:.78rem}
+details{margin-top:10px}summary{cursor:pointer;font-weight:650}
+@media(max-width:650px){.editrow{grid-template-columns:1fr repeat(5,42px);gap:3px}.editrow .qtext{grid-column:1/-1}.editrow label{font-size:.68rem}th,td{padding:6px 4px}}
+</style>
+</head>
+<body>
+<header><h1>Student Voice — Survey Analyser</h1><p>Upload scanned completed forms, review the detected answers, and collate the results.</p></header>
+<div class="wrap">
+<section class="panel">
+<h2>1. Upload completed surveys</h2>
+<p class="muted">Choose a PDF containing one or more scans of the same one-page Student Voice form. Processing runs in this browser; the PDF is not uploaded to a server. For best results, use upright, full-page scans with the page edges visible.</p>
+<input id="pdfFile" type="file" accept="application/pdf">
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button id="process">Analyse PDF</button><button id="demo" class="secondary">Load demo results</button></div>
+<div class="progress"><span id="bar"></span></div><div id="status" class="status" role="status">Ready. First use needs an internet connection to load the PDF library.</div>
+</section>
+<section class="panel" id="reviewPanel" hidden>
+<h2>2. Review and correct detections</h2>
+<p class="muted">Checkbox detection counts each clearly marked option independently, including multiple marks. Answer-selection boxes stay hidden unless you press “Edit answers” on a page. Review the totals and correct any detections that need it.</p>
+<div id="reviews"></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button id="recalc">Update totals</button><button id="exportCsv" class="secondary">Export answers CSV</button></div>
+</section>
+<section class="panel" id="resultsPanel" hidden>
+<h2>3. Collated results</h2><div id="summary" class="grid"></div><div id="results"></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button id="downloadCsv">Download summary CSV</button><button id="downloadJson" class="secondary">Download full data JSON</button></div>
+</section>
+<section class="panel">
+<h2>Questions detected from your master form</h2><p class="muted">14 rating statements, each with five response options. Only tick-box responses are analysed; written text is ignored.</p><div id="baseline"></div>
+</section>
+<p class="muted">Privacy note: this single-page prototype uses third-party open-source libraries loaded from CDNs. PDF pages and results stay in the browser session unless you download an export. Avoid using it on a shared device without clearing the page afterwards.</p>
+</div>
+<script>
+const QUESTIONS=[
+"My teacher in this class makes me feel that s/he really cares about me",
+"My teacher really tries to understand how students feel about things",
+"Students in this class treat the teacher with respect",
+"Our class stays busy and doesn't waste time",
+"My teacher has several good ways of explaining each topic that we cover in this class",
+"My teacher explains difficult things clearly",
+"In this class, we learn a lot almost every day",
+"In this class, we learn to correct our mistakes",
+"My teacher makes lessons interesting",
+"I like the ways we learn in this class",
+"Students speak up and share their ideas about class work",
+"My teacher respects my ideas and suggestions",
+"My teacher checks to make sure that we understand when s/he is teaching us",
+"The comments that I get on my work in this class help me to understand how to improve"
+];
+const OPTIONS=["Strongly agree","Agree","Neither agree nor disagree","Disagree","Strongly disagree"];
+// Box centres measured from the supplied A4 master form, as fractions of page width/height.
+// Each row has the same five horizontal checkbox positions.
+const X=[.062,.240,.420,.598,.776];
+const Y=[.139,.282,.410,.457,.505,.552,.599,.645,.693,.740,.788,.835,.882,.929];
+let pages=[],pdfDoc=null;
+const $=id=>document.getElementById(id);
+function setStatus(s,p){$("status").textContent=s;if(p!==undefined)$("bar").style.width=p+"%"}
+function blankPage(n){return {page:n,answers:Array.from({length:14},()=>[]),editing:false}}
+function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function buildBaseline(){$("baseline").innerHTML=QUESTIONS.map((q,i)=>`<div style="padding:8px 0;border-bottom:1px solid #e5e9ef"><b>${i+1}.</b> ${escapeHtml(q)}<div class="muted">${OPTIONS.join(" · ")}</div></div>`).join("")}
+buildBaseline();
+function loadScripts(){return new Promise((resolve,reject)=>{if(window.pdfjsLib)return resolve();let s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";s.onload=resolve;s.onerror=()=>reject(Error("Could not load the PDF library. Check your internet connection and reload."));document.head.appendChild(s)})}
+function detect(canvas){
+ // The five response boxes are small outlined squares. Sample only the INSIDE of
+ // each square, leaving the printed border outside the sample so the outline itself
+ // can never count as a response. Any clear dark or coloured ink inside counts.
+ const ctx=canvas.getContext("2d",{willReadFrequently:true}),w=canvas.width,h=canvas.height;
+ const im=ctx.getImageData(0,0,w,h),out=[];
+ const pixel=(x,y)=>{const i=(Math.floor(y)*w+Math.floor(x))*4;return [im.data[i],im.data[i+1],im.data[i+2]]};
+ for(let r=0;r<14;r++){
+  const marked=[];
+  for(let c=0;c<5;c++){
+   const cx=X[c]*w,cy=Y[r]*h;
+   // Interior only: roughly the central 45% of each printed box, avoiding all edges.
+   const rx=w*.0048,ry=h*.0048;
+   let ink=0,clusterCandidates=0,total=0;
+   for(let yy=Math.max(0,Math.ceil(cy-ry));yy<=Math.min(h-1,Math.floor(cy+ry));yy++){
+    for(let xx=Math.max(0,Math.ceil(cx-rx));xx<=Math.min(w-1,Math.floor(cx+rx));xx++){
+     const [red,green,blue]=pixel(xx,yy);total++;
+     const max=Math.max(red,green,blue),min=Math.min(red,green,blue);
+     const luminance=.299*red+.587*green+.114*blue;
+     // Dark ink (black/grey) OR saturated coloured ink (blue, red, etc.).
+     // Near-white paper and tiny antialiasing variations are ignored.
+     const isInk=luminance<205 || (max-min>28 && luminance<238);
+     if(isInk)ink++;
+    }
+   }
+   // A few adjacent ink pixels are enough for a thin pen stroke. Requiring a tiny
+   // amount of coverage rejects isolated scan specks but remains sensitive to marks.
+   const ratio=ink/Math.max(total,1);
+   if(ink>=4 && ratio>=0.0025) marked.push(c);
+  }
+  out.push(marked);
+ }
+ return out;
+}
+$("process").onclick=async()=>{let f=$("pdfFile").files[0];if(!f){setStatus("Choose a PDF first.");return} $("process").disabled=true;$("reviewPanel").hidden=true;$("resultsPanel").hidden=true;pages=[];try{setStatus("Loading PDF library…",3);await loadScripts();pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";let bytes=await f.arrayBuffer();pdfDoc=await pdfjsLib.getDocument({data:bytes}).promise;for(let n=1;n<=pdfDoc.numPages;n++){setStatus(`Rendering and analysing page ${n} of ${pdfDoc.numPages}…`,Math.round(5+90*n/pdfDoc.numPages));let p=await pdfDoc.getPage(n);let vp=p.getViewport({scale:2.4});let c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;await p.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;let data=blankPage(n);data.answers=detect(c);pages.push(data)}renderReviews();recalculate();setStatus(`Finished analysing ${pages.length} page(s). Each marked option is counted independently. Use “Edit answers” only where you need to correct a page.`,100)}catch(e){console.error(e);setStatus("Could not analyse this PDF: "+(e.message||e))}finally{$("process").disabled=false}};
+function answerLabel(a){return a.length?a.map(i=>OPTIONS[i]).join(" + "):"No mark detected"}
+function renderReviews(){
+ $("reviewPanel").hidden=false;
+ $("reviews").innerHTML=pages.map((p,pi)=>`<div class="pagecard"><h3 style="margin:0 0 8px">Page ${p.page}</h3><p class="muted">Detected marks: ${p.answers.reduce((n,a)=>n+a.length,0)} across 14 questions. ${p.answers.filter(a=>a.length>1).length} question(s) have multiple marks.</p><div class="scroll"><table><thead><tr><th>Question</th><th>Detected answer(s)</th></tr></thead><tbody>${QUESTIONS.map((q,qi)=>`<tr><td>${qi+1}. ${escapeHtml(q)}</td><td>${escapeHtml(answerLabel(p.answers[qi]))}</td></tr>`).join("")}</tbody></table></div><button type="button" class="secondary edit-toggle" data-page="${pi}" style="margin-top:12px">Edit answers</button><div class="edit-area" data-edit-area="${pi}" hidden><h4>Correct detected answers</h4><p class="muted">Tick every option that has a mark. Leave all unticked if the answer is blank. Multiple selections are allowed.</p>${QUESTIONS.map((q,qi)=>`<div class="editrow"><div class="qtext">${qi+1}. ${escapeHtml(q)}</div>${OPTIONS.map((o,oi)=>`<label>${o}<input type="checkbox" data-answer-page="${pi}" data-answer-question="${qi}" value="${oi}" ${p.answers[qi].includes(oi)?"checked":""} aria-label="${escapeHtml(q)}: ${o}"></label>`).join("")}</div>`).join("")}<button type="button" class="save-page" data-page="${pi}">Save answers</button></div></div>`).join("");
+ $("reviews").querySelectorAll(".edit-toggle").forEach(btn=>btn.onclick=()=>{const pi=+btn.dataset.page,area=$("reviews").querySelector(`[data-edit-area="${pi}"]`);area.hidden=!area.hidden;btn.textContent=area.hidden?"Edit answers":"Hide editing"});
+ $("reviews").querySelectorAll(".save-page").forEach(btn=>btn.onclick=()=>{const pi=+btn.dataset.page;pages[pi].answers=QUESTIONS.map((_,qi)=>Array.from($("reviews").querySelectorAll(`input[data-answer-page="${pi}"][data-answer-question="${qi}"]:checked`)).map(el=>+el.value));renderReviews();recalculate();setStatus(`Page ${pages[pi].page} answers saved and totals updated.`)});
+}
+$("recalc").onclick=()=>{recalculate();setStatus("Totals updated.")};
+function recalculate(){let counts=QUESTIONS.map(()=>Array(6).fill(0));pages.forEach(p=>p.answers.forEach((a,i)=>{if(!a.length)counts[i][5]++;else a.forEach(v=>counts[i][v]++)}));const answered=pages.reduce((n,p)=>n+p.answers.filter(a=>a.length>0).length,0);const blank=pages.reduce((n,p)=>n+p.answers.filter(a=>a.length===0).length,0);const marks=pages.reduce((n,p)=>n+p.answers.reduce((m,a)=>m+a.length,0),0);$("resultsPanel").hidden=false;$("summary").innerHTML=`<div class="stat"><strong>${pages.length}</strong><span>Forms / pages</span></div><div class="stat"><strong>${answered}</strong><span>Questions with at least one mark</span></div><div class="stat"><strong>${blank}</strong><span>Questions with no detected mark</span></div><div class="stat"><strong>${marks}</strong><span>Total detected marks (including multiple marks)</span></div>`;$("results").innerHTML=QUESTIONS.map((q,i)=>{const answeredCount=counts[i].slice(0,5).reduce((a,b)=>a+b,0);return `<div style="margin-top:18px"><h3 style="font-size:1rem;margin-bottom:8px">${i+1}. ${escapeHtml(q)}</h3><div class="scroll"><table><thead><tr><th>Response</th>${OPTIONS.map(o=>`<th>${o}</th>`).join("")}<th>No mark</th><th>Total marks / forms</th></tr></thead><tbody><tr><td>Count</td>${counts[i].slice(0,5).map(n=>`<td class="num">${n}</td>`).join("")}<td class="num">${counts[i][5]}</td><td class="num">${counts[i].slice(0,5).reduce((a,b)=>a+b,0)+counts[i][5]}</td></tr><tr><td>% of detected marks</td>${counts[i].slice(0,5).map(n=>`<td class="num">${answeredCount?Math.round(n/answeredCount*100)+"%":"—"}</td>`).join("")}<td class="num">—</td><td class="num">${answeredCount?answeredCount:"—"}</td></tr></tbody></table></div></div>`}).join("")}
+function csvEscape(x){return '"'+String(x??"").replace(/"/g,'""')+'"'}
+function download(name,text,type="text/csv;charset=utf-8"){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff",text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+$("exportCsv").onclick=()=>{let rows=[["Page",...QUESTIONS]];pages.forEach(p=>rows.push([p.page,...p.answers.map(answerLabel)]));download("student-voice-answers.csv",rows.map(r=>r.map(csvEscape).join(",")).join("\r\n"))};
+$("downloadCsv").onclick=()=>{let rows=[["Question",...OPTIONS,"No mark","Total forms"]];QUESTIONS.forEach((q,i)=>{let c=Array(6).fill(0);pages.forEach(p=>{const a=p.answers[i];if(!a.length)c[5]++;else a.forEach(v=>c[v]++)});rows.push([q,...c,c[5]+pages.length-c[5]])});download("student-voice-summary.csv",rows.map(r=>r.map(csvEscape).join(",")).join("\r\n"))};
+$("downloadJson").onclick=()=>download("student-voice-data.json",JSON.stringify({exportedAt:new Date().toISOString(),questions:QUESTIONS,options:OPTIONS,pages},null,2),"application/json");
+$("demo").onclick=()=>{pages=[blankPage(1),blankPage(2),blankPage(3)];pages[0].answers[3]=[0];pages[1].answers[3]=[1];pages[2].answers[3]=[2];pages[0].answers[4]=[0,2];renderReviews();recalculate();setStatus("Demo data loaded. These are fictional examples, not extracted survey responses.",100)};
+</script>
+</body></html>
